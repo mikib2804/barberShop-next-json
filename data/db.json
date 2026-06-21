@@ -1,0 +1,13 @@
+{
+  "customers": [],
+  "appointments": [],
+  "settings": {
+    "workingHoursStart": "08:00",
+    "workingHoursEnd": "13:00",
+    "activeDays": [0, 1, 2, 3, 4],
+    "blockedDates": [],
+    "blockedHours": [],
+    "slotMinutes": 30
+  }
+}
+

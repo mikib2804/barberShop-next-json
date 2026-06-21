@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+}
+
+body {
+  margin: 0;
+  background: #f7f4ef;
+  color: #0f172a;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
