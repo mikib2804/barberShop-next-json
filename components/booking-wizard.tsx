@@ -32,7 +32,10 @@ export function BookingWizard() {
   useEffect(() => {
     api
       .getSettings()
-      .then(setSettings)
+      .then((data) => {
+        setSettings(data);
+        setError("");
+      })
       .catch(() => setError("לא ניתן לטעון הגדרות עסק"));
   }, []);
 
@@ -40,7 +43,10 @@ export function BookingWizard() {
     if (step >= 2) {
       api
         .getAvailable(date)
-        .then((data) => setSlots(data.slots))
+        .then((data) => {
+          setSlots(data.slots);
+          setError("");
+        })
         .catch(() => setError("לא ניתן לטעון שעות זמינות"));
     }
   }, [date, step]);

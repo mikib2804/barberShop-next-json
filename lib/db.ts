@@ -1,12 +1,8 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import { randomUUID } from 'crypto';
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns';
+import { Prisma } from '@prisma/client';
+import { prisma } from './prisma';
 import { AppointmentStatus, AppointmentWithCustomer, BusinessSettings, JsonDb, StoredAppointment } from './types';
-
-const localDbPath = path.join(process.cwd(), 'data', 'db.local.json');
-const seedDbPath = path.join(process.cwd(), 'data', 'db.json');
-const blobDbPath = process.env.VERCEL_BLOB_DB_PATH ?? 'hairsalon108/db.json';
 
 const defaultSettings: BusinessSettings = {
   workingHoursStart: '08:00',
@@ -17,80 +13,92 @@ const defaultSettings: BusinessSettings = {
   slotMinutes: 30
 };
 
-const defaultDb: JsonDb = {
-  customers: [],
-  appointments: [],
-  settings: defaultSettings
-};
-
-async function ensureDb(): Promise<void> {
-  await fs.mkdir(path.dirname(localDbPath), { recursive: true });
-  try {
-    await fs.access(localDbPath);
-  } catch {
-    try {
-      await fs.copyFile(seedDbPath, localDbPath);
-    } catch {
-      await fs.writeFile(localDbPath, JSON.stringify(defaultDb, null, 2), 'utf8');
-    }
-  }
-}
-
 export async function readDb(): Promise<JsonDb> {
-  if (useVercelBlob()) {
-    return readBlobDb();
-  }
+  const [customers, appointments, settings] = await Promise.all([
+    prisma.customer.findMany(),
+    prisma.appointment.findMany(),
+    prisma.businessSettings.upsert({
+      where: { id: 'singleton' },
+      update: {},
+      create: {
+        id: 'singleton',
+        workingHoursStart: defaultSettings.workingHoursStart,
+        workingHoursEnd: defaultSettings.workingHoursEnd,
+        activeDays: defaultSettings.activeDays as Prisma.InputJsonValue,
+        blockedDates: defaultSettings.blockedDates as Prisma.InputJsonValue,
+        blockedHours: defaultSettings.blockedHours as Prisma.InputJsonValue,
+        slotMinutes: defaultSettings.slotMinutes
+      }
+    })
+  ]);
 
-  await ensureDb();
-  const content = await fs.readFile(localDbPath, 'utf8');
-  return JSON.parse(content) as JsonDb;
+  return {
+    customers: customers.map((customer) => ({
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone
+    })),
+    appointments: appointments.map((appointment) => ({
+      id: appointment.id,
+      customerId: appointment.customerId,
+      date: appointment.date,
+      time: appointment.time,
+      status: appointment.status
+    })),
+    settings: {
+      workingHoursStart: settings.workingHoursStart,
+      workingHoursEnd: settings.workingHoursEnd,
+      activeDays: settings.activeDays as unknown as number[],
+      blockedDates: settings.blockedDates as unknown as string[],
+      blockedHours: settings.blockedHours as unknown as Array<{ date: string; time: string }>,
+      slotMinutes: settings.slotMinutes
+    }
+  };
 }
 
 export async function writeDb(db: JsonDb): Promise<void> {
-  if (useVercelBlob()) {
-    await writeBlobDb(db);
-    return;
-  }
-
-  await ensureDb();
-  await fs.writeFile(localDbPath, JSON.stringify(db, null, 2), 'utf8');
-}
-
-function useVercelBlob(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-}
-
-async function readBlobDb(): Promise<JsonDb> {
-  const { get, put } = await import('@vercel/blob');
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  const result = await get(blobDbPath, {
-    access: 'private',
-    useCache: false,
-    ...(token ? { token } : {})
-  });
-
-  if (!result?.stream) {
-    await put(blobDbPath, JSON.stringify(defaultDb, null, 2), {
-      access: 'private',
-      allowOverwrite: true,
-      contentType: 'application/json',
-      ...(token ? { token } : {})
+  await prisma.$transaction(async (tx) => {
+    await tx.businessSettings.upsert({
+      where: { id: 'singleton' },
+      update: {
+        workingHoursStart: db.settings.workingHoursStart,
+        workingHoursEnd: db.settings.workingHoursEnd,
+        activeDays: db.settings.activeDays as Prisma.InputJsonValue,
+        blockedDates: db.settings.blockedDates as Prisma.InputJsonValue,
+        blockedHours: db.settings.blockedHours as unknown as Prisma.InputJsonValue,
+        slotMinutes: db.settings.slotMinutes
+      },
+      create: {
+        id: 'singleton',
+        workingHoursStart: db.settings.workingHoursStart,
+        workingHoursEnd: db.settings.workingHoursEnd,
+        activeDays: db.settings.activeDays as Prisma.InputJsonValue,
+        blockedDates: db.settings.blockedDates as Prisma.InputJsonValue,
+        blockedHours: db.settings.blockedHours as unknown as Prisma.InputJsonValue,
+        slotMinutes: db.settings.slotMinutes
+      }
     });
-    return structuredClone(defaultDb);
-  }
 
-  const response = new Response(result.stream);
-  return response.json() as Promise<JsonDb>;
-}
+    for (const customer of db.customers) {
+      await tx.customer.upsert({
+        where: { id: customer.id },
+        update: { name: customer.name, phone: customer.phone },
+        create: customer
+      });
+    }
 
-async function writeBlobDb(db: JsonDb): Promise<void> {
-  const { put } = await import('@vercel/blob');
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  await put(blobDbPath, JSON.stringify(db, null, 2), {
-    access: 'private',
-    allowOverwrite: true,
-    contentType: 'application/json',
-    ...(token ? { token } : {})
+    for (const appointment of db.appointments) {
+      await tx.appointment.upsert({
+        where: { id: appointment.id },
+        update: {
+          customerId: appointment.customerId,
+          date: appointment.date,
+          time: appointment.time,
+          status: appointment.status
+        },
+        create: appointment
+      });
+    }
   });
 }
 
@@ -134,7 +142,10 @@ export function getAvailableSlots(db: JsonDb, date: string): Array<{ time: strin
   }));
 }
 
-export function createAppointment(db: JsonDb, payload: { name: string; phone: string; date: string; time: string }): AppointmentWithCustomer {
+export function createAppointment(
+  db: JsonDb,
+  payload: { name: string; phone: string; date: string; time: string }
+): AppointmentWithCustomer {
   const slots = getAvailableSlots(db, payload.date);
   const slot = slots.find((item) => item.time === payload.time);
   if (!slot?.available) {
