@@ -1,6 +1,5 @@
-import { BookingApp } from '@/components/booking-app';
+import { BookingWizard } from '@/components/booking-wizard';
 
 export default function Home() {
-  return <BookingApp />;
+  return <BookingWizard />;
 }
-

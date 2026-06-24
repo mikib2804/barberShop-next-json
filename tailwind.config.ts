@@ -7,6 +7,7 @@ const config: Config = {
       colors: {
         navy: '#0f172a',
         panel: '#172033',
+        slatePanel: '#172033',
         bronze: '#b78642',
         champagne: '#f4ead8',
         mint: '#dff7e8'
@@ -20,4 +21,3 @@ const config: Config = {
 };
 
 export default config;
-

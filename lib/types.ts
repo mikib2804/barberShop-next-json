@@ -1,12 +1,17 @@
 export type AppointmentStatus = 'planned' | 'arrived' | 'cancelled';
 
+export interface Slot {
+  time: string;
+  available: boolean;
+}
+
 export interface Customer {
   id: string;
   name: string;
   phone: string;
 }
 
-export interface Appointment {
+export interface StoredAppointment {
   id: string;
   customerId: string;
   date: string;
@@ -14,9 +19,11 @@ export interface Appointment {
   status: AppointmentStatus;
 }
 
-export interface AppointmentWithCustomer extends Appointment {
+export interface Appointment extends StoredAppointment {
   customer: Customer;
 }
+
+export type AppointmentWithCustomer = Appointment;
 
 export interface BusinessSettings {
   workingHoursStart: string;
@@ -29,7 +36,6 @@ export interface BusinessSettings {
 
 export interface JsonDb {
   customers: Customer[];
-  appointments: Appointment[];
+  appointments: StoredAppointment[];
   settings: BusinessSettings;
 }
-

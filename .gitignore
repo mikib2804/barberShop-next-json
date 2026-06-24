@@ -3,4 +3,5 @@ node_modules/
 out/
 .env
 .env.local
+data/db.local.json
 *.log

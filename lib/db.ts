@@ -2,9 +2,11 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns';
-import { Appointment, AppointmentStatus, AppointmentWithCustomer, BusinessSettings, Customer, JsonDb } from './types';
+import { AppointmentStatus, AppointmentWithCustomer, BusinessSettings, JsonDb, StoredAppointment } from './types';
 
-const dbPath = path.join(process.cwd(), 'data', 'db.json');
+const localDbPath = path.join(process.cwd(), 'data', 'db.local.json');
+const seedDbPath = path.join(process.cwd(), 'data', 'db.json');
+const blobDbPath = process.env.VERCEL_BLOB_DB_PATH ?? 'hairsalon108/db.json';
 
 const defaultSettings: BusinessSettings = {
   workingHoursStart: '08:00',
@@ -22,23 +24,74 @@ const defaultDb: JsonDb = {
 };
 
 async function ensureDb(): Promise<void> {
-  await fs.mkdir(path.dirname(dbPath), { recursive: true });
+  await fs.mkdir(path.dirname(localDbPath), { recursive: true });
   try {
-    await fs.access(dbPath);
+    await fs.access(localDbPath);
   } catch {
-    await fs.writeFile(dbPath, JSON.stringify(defaultDb, null, 2), 'utf8');
+    try {
+      await fs.copyFile(seedDbPath, localDbPath);
+    } catch {
+      await fs.writeFile(localDbPath, JSON.stringify(defaultDb, null, 2), 'utf8');
+    }
   }
 }
 
 export async function readDb(): Promise<JsonDb> {
+  if (useVercelBlob()) {
+    return readBlobDb();
+  }
+
   await ensureDb();
-  const content = await fs.readFile(dbPath, 'utf8');
+  const content = await fs.readFile(localDbPath, 'utf8');
   return JSON.parse(content) as JsonDb;
 }
 
 export async function writeDb(db: JsonDb): Promise<void> {
+  if (useVercelBlob()) {
+    await writeBlobDb(db);
+    return;
+  }
+
   await ensureDb();
-  await fs.writeFile(dbPath, JSON.stringify(db, null, 2), 'utf8');
+  await fs.writeFile(localDbPath, JSON.stringify(db, null, 2), 'utf8');
+}
+
+function useVercelBlob(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+async function readBlobDb(): Promise<JsonDb> {
+  const { get, put } = await import('@vercel/blob');
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  const result = await get(blobDbPath, {
+    access: 'private',
+    useCache: false,
+    ...(token ? { token } : {})
+  });
+
+  if (!result?.stream) {
+    await put(blobDbPath, JSON.stringify(defaultDb, null, 2), {
+      access: 'private',
+      allowOverwrite: true,
+      contentType: 'application/json',
+      ...(token ? { token } : {})
+    });
+    return structuredClone(defaultDb);
+  }
+
+  const response = new Response(result.stream);
+  return response.json() as Promise<JsonDb>;
+}
+
+async function writeBlobDb(db: JsonDb): Promise<void> {
+  const { put } = await import('@vercel/blob');
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  await put(blobDbPath, JSON.stringify(db, null, 2), {
+    access: 'private',
+    allowOverwrite: true,
+    contentType: 'application/json',
+    ...(token ? { token } : {})
+  });
 }
 
 export function requireAdmin(request: Request): Response | null {
@@ -96,7 +149,7 @@ export function createAppointment(db: JsonDb, payload: { name: string; phone: st
     customer.name = payload.name;
   }
 
-  const appointment: Appointment = {
+  const appointment: StoredAppointment = {
     id: randomUUID(),
     customerId: customer.id,
     date: payload.date,
@@ -107,7 +160,7 @@ export function createAppointment(db: JsonDb, payload: { name: string; phone: st
   return { ...appointment, customer };
 }
 
-export function withCustomers(db: JsonDb, appointments: Appointment[]): AppointmentWithCustomer[] {
+export function withCustomers(db: JsonDb, appointments: StoredAppointment[]): AppointmentWithCustomer[] {
   return appointments.map((appointment) => {
     const customer = db.customers.find((item) => item.id === appointment.customerId) ?? {
       id: appointment.customerId,
@@ -156,4 +209,3 @@ function toTime(minutes: number): string {
   const mins = (minutes % 60).toString().padStart(2, '0');
   return `${hours}:${mins}`;
 }
-
