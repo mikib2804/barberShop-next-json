@@ -19,10 +19,6 @@ const defaultSettings: BusinessSettings = {
   slotMinutes: 30,
 };
 
-/**
- * SAFE: Only runs when explicitly called inside API route
- * (NOT at module import time)
- */
 export async function readDb(): Promise<JsonDb> {
   const [customers, appointments, settings] = await Promise.all([
     prisma.customer.findMany(),
@@ -43,17 +39,17 @@ export async function readDb(): Promise<JsonDb> {
   ]);
 
   return {
-    customers: customers.map((c) => ({
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
+    customers: customers.map((customer) => ({
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
     })),
-    appointments: appointments.map((a) => ({
-      id: a.id,
-      customerId: a.customerId,
-      date: a.date,
-      time: a.time,
-      status: a.status,
+    appointments: appointments.map((appointment) => ({
+      id: appointment.id,
+      customerId: appointment.customerId,
+      date: appointment.date,
+      time: appointment.time,
+      status: appointment.status,
     })),
     settings: {
       workingHoursStart: settings.workingHoursStart,
@@ -69,9 +65,6 @@ export async function readDb(): Promise<JsonDb> {
   };
 }
 
-/**
- * SAFE write
- */
 export async function writeDb(db: JsonDb): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.businessSettings.upsert({
@@ -81,7 +74,8 @@ export async function writeDb(db: JsonDb): Promise<void> {
         workingHoursEnd: db.settings.workingHoursEnd,
         activeDays: db.settings.activeDays as Prisma.InputJsonValue,
         blockedDates: db.settings.blockedDates as Prisma.InputJsonValue,
-        blockedHours: db.settings.blockedHours as Prisma.InputJsonValue,
+        blockedHours: db.settings
+          .blockedHours as unknown as Prisma.InputJsonValue,
         slotMinutes: db.settings.slotMinutes,
       },
       create: {
@@ -90,71 +84,63 @@ export async function writeDb(db: JsonDb): Promise<void> {
         workingHoursEnd: db.settings.workingHoursEnd,
         activeDays: db.settings.activeDays as Prisma.InputJsonValue,
         blockedDates: db.settings.blockedDates as Prisma.InputJsonValue,
-        blockedHours: db.settings.blockedHours as Prisma.InputJsonValue,
+        blockedHours: db.settings
+          .blockedHours as unknown as Prisma.InputJsonValue,
         slotMinutes: db.settings.slotMinutes,
       },
     });
 
-    await Promise.all([
-      ...db.customers.map((c) =>
-        tx.customer.upsert({
-          where: { id: c.id },
-          update: { name: c.name, phone: c.phone },
-          create: c,
-        }),
-      ),
+    for (const customer of db.customers) {
+      await tx.customer.upsert({
+        where: { id: customer.id },
+        update: { name: customer.name, phone: customer.phone },
+        create: customer,
+      });
+    }
 
-      ...db.appointments.map((a) =>
-        tx.appointment.upsert({
-          where: { id: a.id },
-          update: {
-            customerId: a.customerId,
-            date: a.date,
-            time: a.time,
-            status: a.status,
-          },
-          create: a,
-        }),
-      ),
-    ]);
+    for (const appointment of db.appointments) {
+      await tx.appointment.upsert({
+        where: { id: appointment.id },
+        update: {
+          customerId: appointment.customerId,
+          date: appointment.date,
+          time: appointment.time,
+          status: appointment.status,
+        },
+        create: appointment,
+      });
+    }
   });
 }
 
-/**
- * AUTH helper (safe)
- */
 export function requireAdmin(request: Request): Response | null {
   const expected = process.env.ADMIN_TOKEN ?? "dev-admin-token-change-me";
   const token = request.headers
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
-
   if (token !== expected) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;
 }
 
-/**
- * Slots logic (unchanged but safe)
- */
 export function generateSlots(settings: BusinessSettings): string[] {
   const start = toMinutes(settings.workingHoursStart);
   const end = toMinutes(settings.workingHoursEnd);
-
   const slots: string[] = [];
-  for (let m = start; m < end; m += settings.slotMinutes) {
-    slots.push(toTime(m));
+  for (let minutes = start; minutes < end; minutes += settings.slotMinutes) {
+    slots.push(toTime(minutes));
   }
   return slots;
 }
 
-export function getAvailableSlots(db: JsonDb, date: string) {
+export function getAvailableSlots(
+  db: JsonDb,
+  date: string,
+): Array<{ time: string; available: boolean }> {
   const selected = parseISO(`${date}T00:00:00`);
   const day = selected.getDay();
-
   const { settings } = db;
-
   if (
     !settings.activeDays.includes(day) ||
     settings.blockedDates.includes(date)
@@ -164,12 +150,16 @@ export function getAvailableSlots(db: JsonDb, date: string) {
 
   const taken = new Set(
     db.appointments
-      .filter((a) => a.date === date && a.status !== "cancelled")
-      .map((a) => a.time),
+      .filter(
+        (appointment) =>
+          appointment.date === date && appointment.status !== "cancelled",
+      )
+      .map((appointment) => appointment.time),
   );
-
   const blocked = new Set(
-    settings.blockedHours.filter((b) => b.date === date).map((b) => b.time),
+    settings.blockedHours
+      .filter((item) => item.date === date)
+      .map((item) => item.time),
   );
 
   return generateSlots(settings).map((time) => ({
@@ -178,28 +168,19 @@ export function getAvailableSlots(db: JsonDb, date: string) {
   }));
 }
 
-/**
- * Business logic
- */
 export function createAppointment(
   db: JsonDb,
   payload: { name: string; phone: string; date: string; time: string },
 ): AppointmentWithCustomer {
   const slots = getAvailableSlots(db, payload.date);
-  const slot = slots.find((s) => s.time === payload.time);
-
+  const slot = slots.find((item) => item.time === payload.time);
   if (!slot?.available) {
     throw new Error("Selected time is not available");
   }
 
-  let customer = db.customers.find((c) => c.phone === payload.phone);
-
+  let customer = db.customers.find((item) => item.phone === payload.phone);
   if (!customer) {
-    customer = {
-      id: randomUUID(),
-      name: payload.name,
-      phone: payload.phone,
-    };
+    customer = { id: randomUUID(), name: payload.name, phone: payload.phone };
     db.customers.push(customer);
   } else {
     customer.name = payload.name;
@@ -212,25 +193,26 @@ export function createAppointment(
     time: payload.time,
     status: "planned",
   };
-
   db.appointments.push(appointment);
-
   return { ...appointment, customer };
 }
 
-/**
- * IMPORTANT: sorting safe
- */
-function sortByDateTime(
-  a: AppointmentWithCustomer,
-  b: AppointmentWithCustomer,
-) {
-  return `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
+export function withCustomers(
+  db: JsonDb,
+  appointments: StoredAppointment[],
+): AppointmentWithCustomer[] {
+  return appointments.map((appointment) => {
+    const customer = db.customers.find(
+      (item) => item.id === appointment.customerId,
+    ) ?? {
+      id: appointment.customerId,
+      name: "לקוח לא ידוע",
+      phone: "",
+    };
+    return { ...appointment, customer };
+  });
 }
 
-/**
- * Weekly / daily queries
- */
 export function getAdminAppointments(
   db: JsonDb,
   view: "daily" | "weekly",
@@ -240,52 +222,51 @@ export function getAdminAppointments(
     const base = parseISO(`${date}T00:00:00`);
     const start = startOfWeek(base, { weekStartsOn: 0 });
     const end = endOfWeek(base, { weekStartsOn: 0 });
-
-    const days: string[] = [];
-
-    for (let d = start; d <= end; d = addDays(d, 1)) {
-      days.push(format(d, "yyyy-MM-dd"));
+    const dates: string[] = [];
+    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+      dates.push(format(cursor, "yyyy-MM-dd"));
     }
-
     return withCustomers(
       db,
-      db.appointments.filter((a) => days.includes(a.date)),
+      db.appointments.filter((appointment) => dates.includes(appointment.date)),
     ).sort(sortByDateTime);
   }
 
   return withCustomers(
     db,
-    db.appointments.filter((a) => a.date === date),
+    db.appointments.filter((appointment) => appointment.date === date),
   ).sort(sortByDateTime);
 }
 
-export function withCustomers(
+export function updateAppointmentStatus(
   db: JsonDb,
-  appointments: StoredAppointment[],
-): AppointmentWithCustomer[] {
-  return appointments.map((a) => {
-    const customer = db.customers.find((c) => c.id === a.customerId) ?? {
-      id: a.customerId,
-      name: "לקוח לא ידוע",
-      phone: "",
-    };
-
-    return { ...a, customer };
-  });
+  id: string,
+  status: AppointmentStatus,
+): AppointmentWithCustomer {
+  const appointment = db.appointments.find((item) => item.id === id);
+  if (!appointment) {
+    throw new Error("Appointment not found");
+  }
+  appointment.status = status;
+  return withCustomers(db, [appointment])[0];
 }
 
-/**
- * helpers
- */
+function sortByDateTime(
+  a: AppointmentWithCustomer,
+  b: AppointmentWithCustomer,
+): number {
+  return `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
+}
+
 function toMinutes(value: string): number {
-  const [h, m] = value.split(":").map(Number);
-  return h * 60 + m;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
 function toTime(minutes: number): string {
-  const h = Math.floor(minutes / 60)
+  const hours = Math.floor(minutes / 60)
     .toString()
     .padStart(2, "0");
-  const m = (minutes % 60).toString().padStart(2, "0");
-  return `${h}:${m}`;
+  const mins = (minutes % 60).toString().padStart(2, "0");
+  return `${hours}:${mins}`;
 }
