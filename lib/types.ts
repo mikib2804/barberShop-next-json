@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'planned' | 'arrived' | 'cancelled';
+export type AppointmentStatus = "planned" | "arrived" | "cancelled";
 
 export interface Slot {
   time: string;
@@ -9,6 +9,7 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  email: string;
 }
 
 export interface StoredAppointment {

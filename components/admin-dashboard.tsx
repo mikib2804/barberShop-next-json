@@ -200,36 +200,50 @@ export function AdminDashboard() {
           </div>
         </header>
 
-        <section className="flex flex-col md:grid gap-3 md:grid-cols-3 justify-center items-center w-full">
+        <section className="gap-3 grid grid-cols-3 justify-center items-center w-full">
           <Stat label="סך התורים" value={stats.total} />
           <Stat label="הגיעו" value={stats.arrived} />
           <Stat label="מתוכנן" value={stats.planned} />
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+          {/* Today's Appointments */}
           <div className="rounded-lg bg-white p-5 shadow-soft">
-            <h2 className="mb-4 max-md:text-center text-xl font-black">
+            <h2 className="mb-4 text-center text-xl font-black md:text-right">
               התורים של היום
             </h2>
+
             <div className="space-y-3">
               {appointments.map((appointment) => (
                 <button
                   key={appointment.id}
                   onClick={() => setSelected(appointment)}
-                  className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-right hover:border-bronze"
+                  className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 p-3 text-right transition hover:border-bronze"
                 >
-                  <span className="font-black">{appointment.time}</span>
-                  <span>{appointment.customer.name}</span>
-                  <StatusBadge status={appointment.status} />
+                  <span className="w-16 shrink-0 font-black">
+                    {appointment.time}
+                  </span>
+
+                  <span className="flex-1 truncate text-right">
+                    {appointment.customer.name}
+                  </span>
+
+                  <div className="shrink-0">
+                    <StatusBadge status={appointment.status} />
+                  </div>
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Daily Calendar */}
           <div className="rounded-lg bg-white p-5 shadow-soft">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-black">יומן יומי</h2>
-              <div className="flex gap-2">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <h2 className="text-center text-xl font-black md:text-right">
+                יומן יומי
+              </h2>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
                 <Button
                   variant="ghost"
                   onClick={() =>
@@ -243,11 +257,13 @@ export function AdminDashboard() {
                 >
                   <ArrowRight size={18} />
                 </Button>
-                <DateSelect
-                  className="w-44"
-                  value={date}
-                  onChange={(value) => setDate(value)}
-                />
+                <Button
+                  variant="ghost"
+                  className="px-3"
+                  onClick={() => setDate(format(new Date(), "yyyy-MM-dd"))}
+                >
+                  היום
+                </Button>
                 <Button
                   variant="ghost"
                   onClick={() =>
@@ -261,28 +277,42 @@ export function AdminDashboard() {
                 >
                   <ArrowLeft size={18} />
                 </Button>
+                <DateSelect
+                  className="w-full sm:w-44"
+                  value={date}
+                  onChange={(value) => setDate(value)}
+                />
               </div>
             </div>
+
             <div className="divide-y divide-slate-100">
               {appointments.map((appointment) => (
                 <div
                   key={appointment.id}
-                  className="grid grid-cols-[90px_1fr_auto] items-center gap-3 py-3"
+                  className="grid grid-cols-[70px_1fr] gap-2 py-3 sm:grid-cols-[90px_1fr_auto] sm:items-center"
                 >
                   <span className="font-black">{appointment.time}</span>
-                  <span>{appointment.customer.name}</span>
-                  <StatusBadge status={appointment.status} />
+
+                  <span className="truncate">{appointment.customer.name}</span>
+
+                  <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
+                    <StatusBadge status={appointment.status} />
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg bg-white p-5 shadow-soft">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-xl font-black">
-              <Calendar size={20} />
-              יומן שבועי{" "}
+        <section className="rounded-lg bg-white p-4 shadow-soft sm:p-5">
+          <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            {/* Title */}
+            <h2 className="flex flex-col gap-1 text-center text-xl font-black sm:flex-row sm:items-center sm:text-right">
+              <span className="flex items-center justify-center gap-2 sm:justify-start">
+                <Calendar size={20} />
+                יומן שבועי
+              </span>
+
               <span className="text-sm font-semibold text-slate-500">
                 {format(
                   startOfWeek(new Date(`${weekDate}T00:00:00`), {
@@ -304,9 +334,13 @@ export function AdminDashboard() {
                 )}
               </span>
             </h2>
-            <div className="flex items-center gap-2">
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-2 lg:justify-end">
+              {/* Previous week */}
               <Button
                 variant="ghost"
+                className="flex h-10 w-10 items-center justify-center p-0 sm:h-auto sm:w-auto sm:px-3"
                 onClick={() =>
                   setWeekDate(
                     format(
@@ -317,16 +351,22 @@ export function AdminDashboard() {
                 }
               >
                 <ArrowRight size={18} />
-                שבוע קודם
+                <span className="hidden sm:inline">שבוע קודם</span>
               </Button>
+
+              {/* Current week */}
               <Button
                 variant="ghost"
+                className="px-3"
                 onClick={() => setWeekDate(format(new Date(), "yyyy-MM-dd"))}
               >
                 השבוע
               </Button>
+
+              {/* Next week */}
               <Button
                 variant="ghost"
+                className="flex h-10 w-10 items-center justify-center p-0 sm:h-auto sm:w-auto sm:px-3"
                 onClick={() =>
                   setWeekDate(
                     format(
@@ -336,23 +376,31 @@ export function AdminDashboard() {
                   )
                 }
               >
-                שבוע הבא
                 <ArrowLeft size={18} />
+                <span className="hidden sm:inline">שבוע הבא</span>
               </Button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <WeeklyGrid
-              date={weekDate}
-              appointments={weekly}
-              onSelect={setSelected}
-            />
+
+          {/* Weekly Grid */}
+          <div className="overflow-x-auto rounded-md">
+            <div className="min-w-[700px]">
+              <WeeklyGrid
+                date={weekDate}
+                appointments={weekly}
+                onSelect={setSelected}
+              />
+            </div>
           </div>
         </section>
 
         {settings && (
           <SettingsPanel settings={settings} onSave={saveSettings} />
         )}
+
+        <footer className="mt-6 border-t border-none pt-4 text-center text-xs text-slate-500">
+          © {new Date().getFullYear()} כל הזכויות שמורות לצוות מערכות מידע
+        </footer>
       </div>
 
       {selected && (
@@ -362,6 +410,7 @@ export function AdminDashboard() {
             <div className="mt-5 space-y-2 text-sm">
               <p>שם: {selected.customer.name}</p>
               <p>טלפון: {selected.customer.phone}</p>
+              <p>אימייל: {selected.customer.email}</p>
               <p>תאריך: {selected.date}</p>
               <p>שעה: {selected.time}</p>
               <p>סטטוס: {statusLabel[selected.status]}</p>
@@ -391,7 +440,7 @@ export function AdminDashboard() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col rounded-lg justify-center items-center w-[70%] md:w-full bg-white p-5 shadow-soft">
+    <div className="flex w-full flex-col rounded-lg justify-center items-center hover:-translate-y-1 transition-all duration-300 cursor-pointer md:w-full bg-white p-5 shadow-soft">
       <p className="text-sm font-semibold text-slate-500">{label}</p>
       <p className="mt-2 text-4xl font-black text-navy">{value}</p>
     </div>
@@ -527,23 +576,29 @@ function SettingsPanel({
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {/* Block Date */}
         <div className="rounded-md border border-slate-200 p-4">
           <p className="mb-3 font-black">חסום תאריך</p>
-          <div className="flex gap-2">
+
+          <div className="flex flex-col gap-2 sm:flex-row">
             <DateSelect
-              className="flex-1"
+              className="w-full flex-1"
               value={blockDate}
               onChange={(value) => setBlockDate(value)}
             />
+
             <Button
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (!blockDate) return;
+
                 setDraft({
                   ...draft,
                   blockedDates: Array.from(
                     new Set([...draft.blockedDates, blockDate]),
                   ),
                 });
+
                 setBlockDate("");
               }}
             >
@@ -551,20 +606,29 @@ function SettingsPanel({
             </Button>
           </div>
         </div>
+
+        {/* Block Hour */}
         <div className="rounded-md border border-slate-200 p-4">
           <p className="mb-3 font-black">חסום שעה</p>
-          <div className="grid grid-cols-[1fr_130px_auto] gap-2">
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_130px_auto]">
             <DateSelect
+              className="w-full"
               value={blockHourDate}
               onChange={(value) => setBlockHourDate(value)}
             />
+
             <TimeSelect
+              className="w-full"
               value={blockHourTime}
               onChange={(value) => setBlockHourTime(value)}
             />
+
             <Button
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (!blockHourDate || !blockHourTime) return;
+
                 setDraft({
                   ...draft,
                   blockedHours: [
@@ -572,6 +636,7 @@ function SettingsPanel({
                     { date: blockHourDate, time: blockHourTime },
                   ],
                 });
+
                 setBlockHourDate("");
                 setBlockHourTime("");
               }}
@@ -582,9 +647,14 @@ function SettingsPanel({
         </div>
       </div>
 
-      <Button className="mt-5" onClick={() => onSave(draft)}>
-        שמור הגדרות
-      </Button>
+      <div className="mt-5 w-full flex justify-center items-center">
+        <Button
+          className="w-full sm:w-fit  sm:px-10"
+          onClick={() => onSave(draft)}
+        >
+          שמור הגדרות
+        </Button>
+      </div>
     </section>
   );
 }

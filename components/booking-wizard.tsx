@@ -64,7 +64,7 @@ export function BookingWizard() {
 
     setLoading(true);
     try {
-      await api.createAppointment({ name, phone, date, time });
+      await api.createAppointment({ name, phone, email, date, time });
       setStep(4);
     } catch (event) {
       setError(
@@ -84,14 +84,13 @@ export function BookingWizard() {
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md bg-navy text-bronze">
-              {/* <Scissors size={24} /> */}
+            <div className="flex h-14 w-14 items-center justify-center rounded-md bg-navy text-bronze flex-shrink-0">
               <Image
-                alt="HairSalon108"
                 src="/logoApp.jpg"
+                alt="HairSalon108"
                 width={56}
                 height={56}
-                className="mb-2 rounded-full object-cover"
+                className="rounded-md object-cover"
               />
             </div>
             <div>
@@ -119,212 +118,141 @@ export function BookingWizard() {
           ))}
         </div>
 
-        <div className="grid flex-1 items-start gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <section className="w-full break-words rounded-lg bg-navy p-6 text-white shadow-soft">
-            {step === 0 && (
-              <div className="flex min-h-[480px] flex-col justify-center">
-                <p className="mb-3 text-sm font-semibold text-bronze">
-                  ברוכים הבאים
-                </p>
-                <h2 className="max-w-xl text-center text-5xl font-black leading-tight">
-                  HairSalon 108
-                </h2>
-                <p className="mt-5 max-w-lg text-lg leading-8 text-slate-200">
-                  קובעים תור במהירות, בוחרים שעה פנויה, ומקבלים אישור מיידי.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Button onClick={() => setStep(1)}>
+        <div className="grid flex-1 items-stretch gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          {/* Left Panel */}
+          <section
+            className="
+      relative overflow-hidden rounded-2xl 
+      bg-gradient-to-br from-navy via-navy to-slate-900
+      p-6 text-white shadow-xl
+      sm:p-8
+    "
+          >
+            {/* Decorative background */}
+            <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-bronze/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+
+            <div className="relative z-10">
+              {step === 0 && (
+                <div className="flex min-h-[480px] flex-col items-center justify-center text-center">
+                  <p className="mb-5 rounded-full bg-bronze/20 px-4 py-1 text-sm font-bold text-bronze">
+                    ברוכים הבאים
+                  </p>
+
+                  <div className="mb-6 rounded-2xl bg-white/10 p-3 backdrop-blur">
+                    <Image
+                      src="/logoApp.jpg"
+                      alt="HairSalon108"
+                      width={170}
+                      height={170}
+                      className="rounded-xl object-cover"
+                    />
+                  </div>
+
+                  <h2 className="text-4xl font-black leading-tight sm:text-5xl">
+                    HairSalon 108
+                  </h2>
+
+                  <p className="mt-5 max-w-md text-base leading-8 text-slate-200 sm:text-lg">
+                    קובעים תור במהירות, בוחרים שעה פנויה, ומקבלים אישור מיידי.
+                  </p>
+
+                  <Button
+                    className="mt-8 w-full sm:w-auto"
+                    onClick={() => setStep(1)}
+                  >
                     <CalendarDays size={18} />
                     קבע תור
                   </Button>
-                  <Button variant="secondary">
-                    <Eye size={18} />
-                    הצג את התורים שלי
+                </div>
+              )}
+
+              {step === 1 && (
+                <PanelTitle
+                  title="בחירת תאריך"
+                  subtitle="בחרו יום פעילות פנוי מתוך שלושת השבועות הקרובים."
+                />
+              )}
+
+              {step === 2 && (
+                <PanelTitle
+                  title="בחירת שעה"
+                  subtitle="בחרו משבצת פנויה. שעות תפוסות מוצגות כלא זמינות."
+                />
+              )}
+
+              {step === 3 && (
+                <PanelTitle
+                  title="פרטי הלקוח"
+                  subtitle="נשמור את הפרטים לקביעת התור ולשליחת אישור."
+                />
+              )}
+
+              {step === 4 && (
+                <div className="flex min-h-[480px] flex-col items-center justify-center text-center">
+                  <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500 shadow-lg">
+                    <Check size={46} />
+                  </div>
+
+                  <h2 className="text-3xl font-black">התור נקבע בהצלחה</h2>
+
+                  <p className="mt-4 text-lg text-slate-200">
+                    {date} בשעה {time}
+                  </p>
+
+                  <p className="mt-2 text-sm text-slate-300">
+                    פרטי התור נשלחו אליך ב-SMS.
+                  </p>
+
+                  <Button
+                    className="mt-8 w-full sm:w-auto"
+                    onClick={() => setStep(0)}
+                  >
+                    חזרה למסך הבית
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {step === 1 && (
-              <PanelTitle
-                title="בחירת תאריך"
-                subtitle="בחרו יום פעילות פנוי מתוך שלושת השבועות הקרובים."
-              />
-            )}
-            {step === 2 && (
-              <PanelTitle
-                title="בחירת שעה"
-                subtitle="בחרו משבצת פנויה. שעות תפוסות מוצגות כלא זמינות."
-              />
-            )}
-            {step === 3 && (
-              <PanelTitle
-                title="פרטי הלקוח"
-                subtitle="נשמור את הפרטים לקביעת התור ולשליחת אישור."
-              />
-            )}
-            {step === 4 && (
-              <div className="flex min-h-[480px] flex-col items-center justify-center text-center">
-                <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500">
-                  <Check size={42} />
-                </div>
-                <h2 className="text-3xl font-bold">התור נקבע בהצלחה</h2>
-                <p className="mt-4 text-lg text-slate-200">
-                  Appointment booked successfully for {date} at {time}
-                </p>
-                <p className="mt-2 text-sm text-slate-300">
-                  פרטי התור נשלחו אליך ב-SMS.
-                </p>
-                <Button className="mt-8" onClick={() => setStep(0)}>
-                  חזרה למסך הבית
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </section>
 
-          <section className="rounded-lg h-full bg-white p-5 shadow-soft">
-            {step === 1 && (
-              <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {days.map((day) => {
-                    const value = format(day, "yyyy-MM-dd");
-                    const active =
-                      settings?.activeDays.includes(day.getDay()) ?? false;
-                    const blocked =
-                      settings?.blockedDates.includes(value) ?? false;
-                    return (
-                      <button
-                        key={value}
-                        disabled={!active || blocked}
-                        onClick={() => {
-                          setDate(value);
-                          setTime("");
-                          setStep(2);
-                        }}
-                        className="min-h-24 rounded-md border border-slate-200 p-3 text-right transition enabled:hover:border-bronze enabled:hover:bg-champagne disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <span className="block text-sm font-bold">
-                          {dayNames[day.getDay()]}
-                        </span>
-                        <span className="mt-2 block text-2xl font-black">
-                          {format(day, "dd")}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {format(day, "MM.yyyy")}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-5 rounded-md bg-champagne px-4 py-3 text-sm font-semibold text-navy">
-                  {activeHours}
-                </p>
-              </>
-            )}
-
-            {step === 2 && (
-              <>
-                <div className="mb-4 flex items-center justify-between">
-                  <Button variant="ghost" onClick={() => setStep(1)}>
-                    שינוי תאריך
-                  </Button>
-                  <p className="font-bold">{date}</p>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {slots.map((slot) => (
-                    <button
-                      key={slot.time}
-                      disabled={!slot.available}
-                      onClick={() => {
-                        setTime(slot.time);
-                        setStep(3);
-                      }}
-                      className={`flex min-h-14 items-center justify-center rounded-md border text-sm font-bold ${
-                        slot.available
-                          ? "border-emerald-400 bg-white text-navy hover:bg-mint"
-                          : "border-slate-900 bg-slate-900 text-white opacity-40"
-                      }`}
-                    >
-                      <Clock size={16} />
-                      <span className="mr-2">{slot.time}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="rounded-md bg-champagne px-4 py-3 text-sm font-semibold">
-                  {date} בשעה {time}
-                </div>
-                <label className="block text-sm font-bold">
-                  שם מלא
-                  <Input
-                    className="mt-2"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="שם מלא"
-                  />
-                </label>
-                <label className="block text-sm font-bold">
-                  email
-                  <Input
-                    className="mt-2"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="אימייל"
-                  />
-                </label>
-                <label className="block text-sm font-bold">
-                  טלפון
-                  <Input
-                    className="mt-2"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="0501234567"
-                    inputMode="tel"
-                  />
-                </label>
-                <Button
-                  className="w-full"
-                  disabled={loading}
-                  onClick={submitBooking}
-                >
-                  קבע תור
-                </Button>
-              </div>
-            )}
-
+          {/* Right Panel */}
+          <section
+            className="
+      h-full rounded-2xl border border-slate-100 
+      bg-white p-5 shadow-xl
+      sm:p-6
+    "
+          >
             {step === 0 && (
               <div className="flex min-h-[480px] flex-col justify-center gap-4">
                 <InfoRow
                   title="בחירה מהירה"
                   text="תאריך, שעה ופרטים במסך אחד ברור."
                 />
+
                 <InfoRow
-                  title="ניהול מקצועי"
-                  text="פאנל מאובטח לספר עם יומן, שבועי והגדרות."
+                  title="מקצועיות מעל הכל"
+                  text="אין מקום לקצבים וחובבנים! תספורת איכותית ומדויקת ברמה הכי גבוהה."
                 />
+
                 <InfoRow
-                  title="זמיונות ועדכונים"
-                  text="התערכת משתדלת לתת מענה לכל הדרישות של הלקוח :)"
+                  title="זמינות ועדכונים"
+                  text="מערכת חכמה שמסייעת ללקוחות לקבוע תורים בקלות."
                 />
               </div>
             )}
-            {step === 4 && (
-              <InfoRow
-                title="נשמח לראות אותך"
-                text="אפשר לקבוע תור נוסף בכל רגע."
-              />
-            )}
+
             {error && (
-              <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                 {error}
               </p>
             )}
           </section>
         </div>
+
+        <footer className="mt-6 border-t border-none pt-4 text-center text-xs text-slate-500">
+          © {new Date().getFullYear()} כל הזכויות שמורות לצוות מערכות מידע
+        </footer>
       </section>
     </main>
   );

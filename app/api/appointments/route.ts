@@ -1,18 +1,36 @@
-import { createAppointment, readDb, writeDb } from '@/lib/db';
+import { createAppointmentInDb } from "@/lib/db";
+import { sendAppointmentEmail } from "@/lib/mail";
 
 export async function POST(request: Request) {
   const payload = await request.json();
-  if (!payload.name || !payload.phone || !payload.date || !payload.time) {
-    return Response.json({ error: 'name, phone, date and time are required' }, { status: 400 });
+  if (
+    !payload.name ||
+    !payload.phone ||
+    !payload.email ||
+    !payload.date ||
+    !payload.time
+  ) {
+    return Response.json(
+      { error: "name, phone, email, date and time are required" },
+      { status: 400 },
+    );
   }
 
-  const db = await readDb();
   try {
-    const appointment = createAppointment(db, payload);
-    await writeDb(db);
+    const appointment = await createAppointmentInDb(payload);
+    sendAppointmentEmail(appointment).catch((error) => {
+      console.error("Could not send appointment email", error);
+    });
     return Response.json(appointment, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : 'Could not create appointment' }, { status: 409 });
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not create appointment",
+      },
+      { status: 409 },
+    );
   }
 }
-

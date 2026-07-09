@@ -43,6 +43,7 @@ export async function readDb(): Promise<JsonDb> {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      email: customer.email,
     })),
     appointments: appointments.map((appointment) => ({
       id: appointment.id,
@@ -93,7 +94,11 @@ export async function writeDb(db: JsonDb): Promise<void> {
     for (const customer of db.customers) {
       await tx.customer.upsert({
         where: { id: customer.id },
-        update: { name: customer.name, phone: customer.phone },
+        update: {
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+        },
         create: customer,
       });
     }
@@ -170,7 +175,13 @@ export function getAvailableSlots(
 
 export function createAppointment(
   db: JsonDb,
-  payload: { name: string; phone: string; date: string; time: string },
+  payload: {
+    name: string;
+    phone: string;
+    email: string;
+    date: string;
+    time: string;
+  },
 ): AppointmentWithCustomer {
   const slots = getAvailableSlots(db, payload.date);
   const slot = slots.find((item) => item.time === payload.time);
@@ -180,10 +191,16 @@ export function createAppointment(
 
   let customer = db.customers.find((item) => item.phone === payload.phone);
   if (!customer) {
-    customer = { id: randomUUID(), name: payload.name, phone: payload.phone };
+    customer = {
+      id: randomUUID(),
+      name: payload.name,
+      phone: payload.phone,
+      email: payload.email,
+    };
     db.customers.push(customer);
   } else {
     customer.name = payload.name;
+    customer.email = payload.email;
   }
 
   const appointment: StoredAppointment = {
@@ -197,6 +214,115 @@ export function createAppointment(
   return { ...appointment, customer };
 }
 
+export async function createAppointmentInDb(payload: {
+  name: string;
+  phone: string;
+  email: string;
+  date: string;
+  time: string;
+}): Promise<AppointmentWithCustomer> {
+  const settings = await prisma.businessSettings.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: {
+      id: "singleton",
+      workingHoursStart: defaultSettings.workingHoursStart,
+      workingHoursEnd: defaultSettings.workingHoursEnd,
+      activeDays: defaultSettings.activeDays as Prisma.InputJsonValue,
+      blockedDates: defaultSettings.blockedDates as Prisma.InputJsonValue,
+      blockedHours: defaultSettings.blockedHours as Prisma.InputJsonValue,
+      slotMinutes: defaultSettings.slotMinutes,
+    },
+  });
+
+  const businessSettings: BusinessSettings = {
+    workingHoursStart: settings.workingHoursStart,
+    workingHoursEnd: settings.workingHoursEnd,
+    activeDays: settings.activeDays as unknown as number[],
+    blockedDates: settings.blockedDates as unknown as string[],
+    blockedHours: settings.blockedHours as unknown as Array<{
+      date: string;
+      time: string;
+    }>,
+    slotMinutes: settings.slotMinutes,
+  };
+
+  const selected = parseISO(`${payload.date}T00:00:00`);
+  const day = selected.getDay();
+  const blockedTimes = businessSettings.blockedHours
+    .filter((item) => item.date === payload.date)
+    .map((item) => item.time);
+  const validSlot =
+    businessSettings.activeDays.includes(day) &&
+    !businessSettings.blockedDates.includes(payload.date) &&
+    !blockedTimes.includes(payload.time) &&
+    generateSlots(businessSettings).includes(payload.time);
+
+  if (!validSlot) {
+    throw new Error("Selected time is not available");
+  }
+
+  const existing = await prisma.appointment.findFirst({
+    where: {
+      date: payload.date,
+      time: payload.time,
+      status: { not: "cancelled" },
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new Error("Selected time is not available");
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.upsert({
+        where: { phone: payload.phone },
+        update: { name: payload.name, email: payload.email },
+        create: {
+          id: randomUUID(),
+          name: payload.name,
+          phone: payload.phone,
+          email: payload.email,
+        },
+      });
+
+      const appointment = await tx.appointment.create({
+        data: {
+          id: randomUUID(),
+          customerId: customer.id,
+          date: payload.date,
+          time: payload.time,
+          status: "planned",
+        },
+      });
+
+      return {
+        id: appointment.id,
+        customerId: appointment.customerId,
+        date: appointment.date,
+        time: appointment.time,
+        status: appointment.status,
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+        },
+      };
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new Error("Selected time is not available");
+    }
+    throw error;
+  }
+}
+
 export function withCustomers(
   db: JsonDb,
   appointments: StoredAppointment[],
@@ -208,6 +334,7 @@ export function withCustomers(
       id: appointment.customerId,
       name: "לקוח לא ידוע",
       phone: "",
+      email: "",
     };
     return { ...appointment, customer };
   });
