@@ -6,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AppointmentWithCustomer, BusinessSettings } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-
+import Image from "next/image";
+import { api } from "@/lib/api";
 const steps = ["בית", "תאריך", "שעה", "פרטים", "אישור"];
 const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -21,14 +22,19 @@ export function BookingApp() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const days = useMemo(
     () => Array.from({ length: 21 }, (_, index) => addDays(new Date(), index)),
     [],
   );
 
+  console.log("ar");
+
   useEffect(() => {
     fetch("/api/settings")
-      .then((response) => response.json())
+      .then(async (response) => await response.json())
       .then(setSettings)
       .catch(() => setError("לא ניתן לטעון הגדרות"));
   }, []);
@@ -40,13 +46,35 @@ export function BookingApp() {
         .then((data) => setSlots(data.slots ?? []));
     }
   }, [date, step]);
+  async function submitBooking() {
+    setError("");
+    if (name.trim().length < 2 || phone.trim().length < 9) {
+      setError("יש למלא שם מלא ומספר טלפון תקין");
+      return;
+    }
+    if (!email.includes("@") || !email.includes(".com")) {
+      setError("יש למלא מייל תקין");
+      return;
+    }
 
+    setLoading(true);
+    try {
+      await api.createAppointment({ name, phone, email, date, time });
+      setStep(4);
+    } catch (event) {
+      setError(
+        event instanceof Error ? event.message : "לא ניתן לקבוע את התור",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
   async function book() {
     setError("");
     const response = await fetch("/api/appointments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, date, time }),
+      body: JSON.stringify({ name, phone, email, date, time }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -71,7 +99,9 @@ export function BookingApp() {
             </div>
             <div>
               <h1 className="text-2xl font-black text-navy">HairSalon108</h1>
-              <p className="text-sm text-slate-500">Next.js + JSON DB</p>
+              <p className="text-sm text-slate-500">
+                מערכת לקביעת תורים - השמחה של החיילים מתחילה מהתספורת
+              </p>
             </div>
           </div>
           <a className="font-semibold text-bronze" href="/admin">
@@ -93,21 +123,36 @@ export function BookingApp() {
         <div className="grid flex-1 gap-6 lg:grid-cols-[1fr_0.95fr]">
           <section className="rounded-lg bg-navy p-8 text-white shadow-soft">
             {step === 0 && (
-              <div className="flex min-h-[480px] flex-col justify-center">
-                <p className="mb-3 text-sm font-semibold text-bronze">
+              <div className="flex min-h-[480px] flex-col items-center justify-center text-center">
+                <p className="mb-5 rounded-full bg-bronze/20 px-4 py-1 text-sm font-bold text-bronze">
                   ברוכים הבאים
                 </p>
-                <h2 className="text-5xl font-black">HairSalon108</h2>
-                <p className="mt-5 max-w-lg text-lg leading-8 text-slate-200">
-                  קביעת תורים מהירה עם API של Next.js וקובץ JSON בתור מסד
-                  נתונים.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Button onClick={() => setStep(1)}>
-                    <CalendarDays size={18} /> קבע תור
-                  </Button>
-                  {/* <Button variant="secondary"><Eye size={18} /> הצג את התורים שלי</Button> */}
+
+                <div className="mb-6 rounded-2xl bg-white/10 p-3 backdrop-blur">
+                  <Image
+                    src="/logoApp.jpg"
+                    alt="HairSalon108"
+                    width={170}
+                    height={170}
+                    className="rounded-xl object-cover"
+                  />
                 </div>
+
+                <h2 className="text-4xl font-black leading-tight sm:text-5xl">
+                  HairSalon 108
+                </h2>
+
+                <p className="mt-5 max-w-md text-base leading-8 text-slate-200 sm:text-lg">
+                  קובעים תור במהירות, בוחרים שעה פנויה, ומקבלים אישור מיידי.
+                </p>
+
+                <Button
+                  className="mt-8 w-full sm:w-auto"
+                  onClick={() => setStep(1)}
+                >
+                  <CalendarDays size={18} />
+                  קבע תור
+                </Button>
               </div>
             )}
             {step === 1 && (
@@ -132,7 +177,7 @@ export function BookingApp() {
                   Appointment booked successfully for {date} at {time}
                 </p>
                 <p className="mt-2 text-sm text-slate-300">
-                  פרטי התור נשמרו בקובץ JSON.
+                  פרטי התור נשלחו אליך במייל. נתראה :)
                 </p>
                 <Button className="mt-8" onClick={() => setStep(0)}>
                   חזרה למסך הבית
@@ -220,6 +265,14 @@ export function BookingApp() {
                   />
                 </label>
                 <label className="block text-sm font-bold">
+                  הכנס מייל
+                  <Input
+                    className="mt-2"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+                <label className="block text-sm font-bold">
                   טלפון
                   <Input
                     className="mt-2"
@@ -239,6 +292,10 @@ export function BookingApp() {
             )}
           </section>
         </div>
+
+        <footer className="mt-6 border-t border-none pt-4 text-center text-xs text-slate-500">
+          © {new Date().getFullYear()} כל הזכויות שמורות לצוות מערכות מידע
+        </footer>
       </section>
     </main>
   );
@@ -253,26 +310,28 @@ function Panel({ title, text }: { title: string; text: string }) {
     </div>
   );
 }
-
+function InfoRow({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 p-4">
+      <p className="font-bold text-navy">{title}</p>
+      <p className="mt-1 text-sm text-slate-500">{text}</p>
+    </div>
+  );
+}
 function Info() {
   return (
     <div className="flex min-h-[480px] flex-col justify-center gap-4">
-      <div className="rounded-md border border-slate-200 p-4">
-        <p className="font-bold">Frontend</p>
-        <p className="text-sm text-slate-500">
-          Next.js App Router + TypeScript.
-        </p>
-      </div>
-      <div className="rounded-md border border-slate-200 p-4">
-        <p className="font-bold">Backend</p>
-        <p className="text-sm text-slate-500">Next.js API routes.</p>
-      </div>
-      <div className="rounded-md border border-slate-200 p-4">
-        <p className="font-bold">Database</p>
-        <p className="text-sm text-slate-500">
-          Local JSON file at data/db.json.
-        </p>
-      </div>
+      <InfoRow title="בחירה מהירה" text="תאריך, שעה ופרטים במסך אחד ברור." />
+
+      <InfoRow
+        title="מקצועיות מעל הכל"
+        text="אין מקום לקצבים וחובבנים! תספורת איכותית ומדויקת ברמה הכי גבוהה."
+      />
+
+      <InfoRow
+        title="זמינות ועדכונים"
+        text="מערכת חכמה שמסייעת ללקוחות לקבוע תורים בקלות."
+      />
     </div>
   );
 }
